@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 public class UserService {
@@ -57,10 +58,32 @@ public class UserService {
     }
 
     @Transactional
+    public UserResponse update(Long userId, UserUpdateRequest request) {
+        AppUser user = find(userId);
+        if (user.getRole() == UserRole.SUPER_USER || user.getRole() == UserRole.MANAGER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Super User and Manager accounts cannot be edited.");
+        }
+
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        if (users.existsByEmailAndIdNot(email, userId)) {
+            throw new ApiException(HttpStatus.CONFLICT, "That email address is already in use.");
+        }
+
+        UserRole role = parseRole(request.role());
+        user.setFullName(request.name().trim());
+        user.setEmail(email);
+        if (user.getRole() != role) {
+            user.setRole(role);
+            user.setPermissions(PermissionCatalog.defaults(role));
+        }
+        return UserResponse.from(user);
+    }
+
+    @Transactional
     public UserResponse updatePermissions(Long userId, List<String> requestedPermissions) {
         AppUser user = find(userId);
-        if (user.getRole() == UserRole.SUPER_USER) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Super User permissions cannot be changed.");
+        if (user.getRole() == UserRole.SUPER_USER || user.getRole() == UserRole.MANAGER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Super User and Manager permissions cannot be changed.");
         }
         try {
             user.setPermissions(PermissionCatalog.validate(requestedPermissions));
@@ -73,10 +96,16 @@ public class UserService {
     @Transactional
     public void delete(Long userId, AppUser actingUser) {
         AppUser user = find(userId);
-        if (user.getRole() == UserRole.SUPER_USER) {
+        if (user.getRole() == UserRole.MANAGER) {
+            if (actingUser.getRole() != UserRole.MANAGER
+                    || !Objects.equals(user.getId(), actingUser.getId())) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "Only a Manager can delete their own account.");
+            }
+        } else if (user.getRole() == UserRole.SUPER_USER) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Super User accounts are protected.");
-        }
-        if (user.getId().equals(actingUser.getId())) {
+        } else if (actingUser.getRole() != UserRole.SUPER_USER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the Super User can manage user accounts.");
+        } else if (Objects.equals(user.getId(), actingUser.getId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot delete your own account.");
         }
         users.delete(user);

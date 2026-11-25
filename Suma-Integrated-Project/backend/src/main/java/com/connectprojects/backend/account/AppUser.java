@@ -89,6 +89,10 @@ public class AppUser {
         return role;
     }
 
+    public void setRole(UserRole role) {
+        this.role = role;
+    }
+
     public boolean isEnabled() {
         return enabled;
     }

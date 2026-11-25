@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   changeCurrentPassword,
   createProject,
+  deleteUser,
   deleteProject,
   getProjects,
   updateCurrentProfile,
@@ -36,10 +37,11 @@ export default function WorkspacePage(props) {
   return <ProjectsAndSettings {...props} />;
 }
 
-function ProjectsAndSettings({ section, user, onUserUpdate }) {
+function ProjectsAndSettings({ section, user, onUserUpdate, onLogout }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [projectForm, setProjectForm] = useState({ name: "", description: "", status: "On track", due: "", leadId: String(user.id || "") });
@@ -149,6 +151,21 @@ function ProjectsAndSettings({ section, user, onUserUpdate }) {
     }
   }
 
+  async function deleteOwnManagerAccount() {
+    if (user.role !== "Manager") return;
+    if (!window.confirm("Delete your Manager account? This cannot be undone and you will be signed out.")) return;
+
+    setDeletingAccount(true);
+    setError("");
+    try {
+      await deleteUser(user.id);
+      onLogout();
+    } catch (requestError) {
+      setError(requestError.message || "Could not delete your account.");
+      setDeletingAccount(false);
+    }
+  }
+
   if (section === "settings") {
     return (
       <section className="panel panel--wide workspace-panel">
@@ -168,6 +185,15 @@ function ProjectsAndSettings({ section, user, onUserUpdate }) {
             <label className="field"><span>Confirm new password</span><input type="password" autoComplete="new-password" required minLength={12} maxLength={72} value={passwordForm.confirmPassword} onChange={(event) => setPasswordForm({ ...passwordForm, confirmPassword: event.target.value })} /></label>
             <button className="btn btn--primary" disabled={saving}>{saving ? "Updating..." : "Change password"}</button>
           </form>
+          {user.role === "Manager" && (
+            <div className="workspace-form workspace-form--narrow">
+              <h3>Delete Manager account</h3>
+              <p className="muted">Only you can delete this Manager account. This action cannot be undone.</p>
+              <button className="btn btn-danger" type="button" disabled={deletingAccount} onClick={deleteOwnManagerAccount}>
+                {deletingAccount ? "Deleting..." : "Delete my account"}
+              </button>
+            </div>
+          )}
         </div>
       </section>
     );

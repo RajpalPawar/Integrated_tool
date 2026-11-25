@@ -20,7 +20,7 @@ export default function AttendancePage({ user }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [scheduleBusy, setScheduleBusy] = useState(null);
-  const canManage = user.role === "Super User" || (user.permissions || []).includes("attendance.manage");
+  const canManage = user.role === "Manager";
 
   const load = useCallback(async () => {
     setLoading(true);

@@ -100,6 +100,13 @@ export async function createUser({ username, name, email, password, role }) {
   });
 }
 
+export async function updateUser(userId, { name, email, role }) {
+  return apiRequest(`/api/users/${encodeURIComponent(userId)}`, {
+    method: "PUT",
+    body: JSON.stringify({ name: name.trim(), email: email.trim().toLowerCase(), role }),
+  });
+}
+
 // Delete user
 export async function deleteUser(userId) {
   return apiRequest(`/api/users/${encodeURIComponent(userId)}`, {

@@ -46,6 +46,12 @@ public class UserController {
         return service.create(request);
     }
 
+    @PutMapping("/{id}")
+    public UserResponse update(@PathVariable Long id, @Valid @RequestBody UserUpdateRequest request, Authentication authentication) {
+        currentUserService.requireSuperUser(authentication);
+        return service.update(id, request);
+    }
+
     @PutMapping("/{id}/permissions")
     public UserResponse updatePermissions(@PathVariable Long id, @Valid @RequestBody PermissionsUpdateRequest request, Authentication authentication) {
         currentUserService.requireSuperUser(authentication);
@@ -55,6 +61,6 @@ public class UserController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id, Authentication authentication) {
-        service.delete(id, currentUserService.requireSuperUser(authentication));
+        service.delete(id, currentUserService.get(authentication));
     }
 }

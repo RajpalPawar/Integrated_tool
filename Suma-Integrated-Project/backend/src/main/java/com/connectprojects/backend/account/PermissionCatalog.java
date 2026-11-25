@@ -12,7 +12,7 @@ public final class PermissionCatalog {
             "reports.view", "reports.generate", "reports.export", "reports.schedule",
             "users.view", "users.create", "users.edit", "users.delete",
             "settings.view", "settings.edit",
-            "attendance.view", "attendance.manage",
+            "attendance.view",
             "knowledge.view", "knowledge.manage"
     );
 
@@ -35,7 +35,7 @@ public final class PermissionCatalog {
                     "reports.view", "reports.generate", "reports.export", "reports.schedule",
                     "users.view", "users.create", "users.edit",
                     "settings.view", "settings.edit",
-                    "attendance.view", "attendance.manage",
+                    "attendance.view",
                     "knowledge.view", "knowledge.manage"
             );
             case ADMIN -> List.of(
@@ -46,7 +46,7 @@ public final class PermissionCatalog {
                     "tickets.resolve", "tickets.close", "tickets.delete",
                     "reports.view", "reports.generate", "reports.export",
                     "settings.view", "settings.edit",
-                    "attendance.view", "attendance.manage",
+                    "attendance.view",
                     "knowledge.view", "knowledge.manage"
             );
             case PROJECT_LEAD -> List.of(

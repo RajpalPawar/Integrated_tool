@@ -44,6 +44,7 @@ import {
   rejectAccountRequest,
   getUsers,
   createUser,
+  updateUser,
   deleteUser,
   updateUserPermissions,
   getDashboard,
@@ -56,6 +57,7 @@ import WorkspacePage from "./WorkspacePage.jsx";
 import NotificationsPage, { useNotifications } from "./NotificationsPage.jsx";
 import AttendancePage from "./AttendancePage.jsx";
 import KnowledgeBasePage from "./KnowledgeBasePage.jsx";
+import EmployeesPage from "./EmployeesPage.jsx";
 
 /* =========================================================
    PERMISSIONS
@@ -118,7 +120,6 @@ const PERMISSION_GROUPS = [
     title: "Attendance",
     permissions: [
       { key: "attendance.view", label: "View own attendance" },
-      { key: "attendance.manage", label: "View team attendance and manage attendance" },
     ],
   },
   {
@@ -153,6 +154,7 @@ const NAV = [
   },
   { key: "tasks", label: "My tasks", permission: "tasks.view" },
   { key: "attendance", label: "Attendance", permission: "attendance.view" },
+  { key: "employees", label: "Employee directory", roleOnly: "Manager" },
   { key: "knowledge", label: "Knowledge Base", permission: "knowledge.view" },
   {
     key: "tickets",
@@ -190,6 +192,7 @@ const NAV_ICONS = {
   "project-management": SlidersHorizontal,
   tasks: ListTodo,
   attendance: Clock3,
+  employees: BriefcaseBusiness,
   knowledge: BookOpen,
   tickets: Ticket,
   reports: FileBarChart2,
@@ -427,6 +430,7 @@ function UserManagement() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingUserId, setEditingUserId] = useState("");
 
   const [form, setForm] = useState({
     name: "",
@@ -474,7 +478,7 @@ function UserManagement() {
     }));
   }
 
-  async function handleCreate(event) {
+  async function handleSaveUser(event) {
     event.preventDefault();
 
     setSaving(true);
@@ -482,7 +486,11 @@ function UserManagement() {
     setNotice("");
 
     try {
-      await createUser(form);
+      if (editingUserId) {
+        await updateUser(editingUserId, form);
+      } else {
+        await createUser(form);
+      }
 
       setForm({
         name: "",
@@ -492,19 +500,20 @@ function UserManagement() {
         role: "Team Member",
       });
 
+      setEditingUserId("");
       setShowForm(false);
-      setNotice("User created successfully.");
+      setNotice(editingUserId ? "User updated successfully." : "User created successfully.");
 
       await loadUsers();
     } catch (err) {
-      setError(err.message || "Could not create user.");
+      setError(err.message || "Could not save user account.");
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(item) {
-    if (item.role === "Super User") return;
+    if (item.role === "Super User" || item.role === "Manager") return;
 
     const confirmed = window.confirm(
       `Are you sure you want to delete ${item.name || item.username}?`
@@ -526,19 +535,40 @@ function UserManagement() {
     }
   }
 
+  function startEditing(item) {
+    if (item.role === "Super User" || item.role === "Manager") return;
+    setEditingUserId(String(item.id));
+    setForm({
+      name: item.name || "",
+      username: item.username || "",
+      email: item.email || "",
+      password: "",
+      role: item.role,
+    });
+    setShowForm(true);
+    setError("");
+    setNotice("");
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditingUserId("");
+    setForm({ name: "", username: "", email: "", password: "", role: "Team Member" });
+  }
+
   return (
     <section className="panel panel--wide user-permissions-panel">
       <div className="panel__head">
         <div>
           <h2>User Management</h2>
           <p className="muted">
-            Create, search and manage user accounts.
+            Create and manage accounts. Manager accounts are protected from other users.
           </p>
         </div>
 
         <button
           className="btn btn--primary"
-          onClick={() => setShowForm((current) => !current)}
+          onClick={() => showForm ? closeForm() : setShowForm(true)}
         >
           {showForm ? "Cancel" : "+ Create User"}
         </button>
@@ -563,8 +593,8 @@ function UserManagement() {
       )}
 
       {showForm && (
-        <form className="permission-group" onSubmit={handleCreate}>
-          <h3>Create New User</h3>
+        <form className="permission-group" onSubmit={handleSaveUser}>
+          <h3>{editingUserId ? "Edit User" : "Create New User"}</h3>
 
           <label className="field">
             <span>Full name</span>
@@ -582,7 +612,8 @@ function UserManagement() {
               name="username"
               value={form.username}
               onChange={updateField}
-              required
+              required={!editingUserId}
+              readOnly={Boolean(editingUserId)}
             />
           </label>
 
@@ -597,19 +628,21 @@ function UserManagement() {
             />
           </label>
 
-          <label className="field">
-            <span>Temporary password (12-72 characters)</span>
-            <input
-              name="password"
-              type="password"
-              minLength={12}
-              maxLength={72}
-              autoComplete="new-password"
-              value={form.password}
-              onChange={updateField}
-              required
-            />
-          </label>
+          {!editingUserId && (
+            <label className="field">
+              <span>Temporary password (12-72 characters)</span>
+              <input
+                name="password"
+                type="password"
+                minLength={12}
+                maxLength={72}
+                autoComplete="new-password"
+                value={form.password}
+                onChange={updateField}
+                required
+              />
+            </label>
+          )}
 
           <label className="field">
             <span>Role</span>
@@ -640,8 +673,9 @@ function UserManagement() {
             type="submit"
             disabled={saving}
           >
-            {saving ? "Creating..." : "Create User"}
+            {saving ? "Saving..." : editingUserId ? "Save Changes" : "Create User"}
           </button>
+          {editingUserId && <button className="btn" type="button" onClick={closeForm}>Cancel</button>}
         </form>
       )}
 
@@ -697,13 +731,13 @@ function UserManagement() {
               <td>
                 {item.role === "Super User" ? (
                   <span className="muted">Protected</span>
+                ) : item.role === "Manager" ? (
+                  <span className="muted">Protected — self-delete only</span>
                 ) : (
-                  <button
-                    className="btn"
-                    onClick={() => handleDelete(item)}
-                  >
-                    Delete
-                  </button>
+                  <div className="d-flex flex-wrap gap-2">
+                    <button className="btn" type="button" onClick={() => startEditing(item)}>Edit</button>
+                    <button className="btn" type="button" onClick={() => handleDelete(item)}>Delete</button>
+                  </div>
                 )}
               </td>
             </tr>
@@ -751,7 +785,7 @@ function UserPermissions() {
         }
       } else {
         const firstUser = list.find(
-          (item) => item.role !== "Super User"
+          (item) => item.role !== "Super User" && item.role !== "Manager"
         );
 
         if (firstUser) {
@@ -774,7 +808,7 @@ function UserPermissions() {
     (item) => String(item.id) === String(selectedId)
   );
 
-  const isSuperUser = selectedUser?.role === "Super User";
+  const isProtectedUser = selectedUser?.role === "Super User" || selectedUser?.role === "Manager";
 
   function togglePermission(key) {
     setSelectedPermissions((current) =>
@@ -797,7 +831,7 @@ function UserPermissions() {
   }
 
   async function savePermissions() {
-    if (!selectedUser || isSuperUser) return;
+    if (!selectedUser || isProtectedUser) return;
 
     setSaving(true);
     setError("");
@@ -889,10 +923,10 @@ function UserPermissions() {
         {loading ? (
           <p className="empty">Loading users...</p>
         ) : users.filter(
-            (item) => item.role !== "Super User"
+            (item) => item.role !== "Super User" && item.role !== "Manager"
           ).length === 0 ? (
           <p className="empty">
-            No other user accounts are available yet.
+            No editable user accounts are available yet.
           </p>
         ) : (
           <>
@@ -907,7 +941,7 @@ function UserPermissions() {
                 }
               >
                 {users
-                  .filter((item) => item.role !== "Super User")
+                  .filter((item) => item.role !== "Super User" && item.role !== "Manager")
                   .map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name || item.username} — {item.role}
@@ -1010,7 +1044,7 @@ function UserPermissions() {
                   <button
                     className="btn btn-primary"
                     onClick={savePermissions}
-                    disabled={saving}
+                    disabled={saving || isProtectedUser}
                   >
                     {saving
                       ? "Saving..."
@@ -1448,6 +1482,7 @@ function Sidebar({ user, active, onNavigate }) {
 
   const visibleNav = NAV.filter((item) => {
     if (item.superUserOnly) return isSuperUser;
+    if (item.roleOnly) return user.role === item.roleOnly;
 
     if (isSuperUser) return true;
 
@@ -1540,6 +1575,7 @@ export default function Dashboard({
 
   const visibleNav = NAV.filter((item) => {
     if (item.superUserOnly) return isSuperUser;
+    if (item.roleOnly) return role === item.roleOnly;
 
     if (item.alwaysVisible) return true;
 
@@ -1582,6 +1618,7 @@ export default function Dashboard({
     "project-management": "Project Management",
     tasks: "My Tasks",
     attendance: "Attendance",
+    employees: "Employee Directory",
     knowledge: "Knowledge Base",
     tickets: "Ticket Management",
     reports: "Reports & Analytics",
@@ -1716,6 +1753,8 @@ export default function Dashboard({
             <ProjectManagementPage user={user} />
           ) : active === "attendance" && canUser(user, "attendance.view") ? (
             <AttendancePage user={user} />
+          ) : active === "employees" && role === "Manager" ? (
+            <EmployeesPage />
           ) : active === "knowledge" && canUser(user, "knowledge.view") ? (
             <KnowledgeBasePage user={user} />
           ) : active === "dashboard" &&
@@ -1748,6 +1787,7 @@ export default function Dashboard({
               section={active}
               user={user}
               onUserUpdate={onUserUpdate}
+              onLogout={onLogout}
             />
           ) : (
             <section className="panel">

@@ -10,12 +10,21 @@ A project, task, ticket and reporting platform with role/permission management.
 
 ## Modules
 
-Login & password reset · Dashboard · Projects · Project Management (clients, leads, shifts, priorities, categories, SLAs) · Tasks · Tickets (assign / resolve / close / history) · Reports & Analytics (daily/weekly/monthly, monthly-log Excel import, scheduled e-mail reports) · Project Analytics · Notifications · Profile & Settings · Account requests · User management · Per-user permissions.
+Login & password reset · Dashboard · Projects · Project Management (clients, leads, shifts, priorities, categories, SLAs) · Tasks · Tickets (assign / resolve / close / history) · Reports & Analytics (daily/weekly/monthly, monthly-log Excel import, scheduled e-mail reports) · Project Analytics · Employee Directory · Attendance · Knowledge Base · Notifications · Profile & Settings · Account requests · User management · Per-user permissions.
 
 ## Permission model
 
-- **Super User**: always has every permission; creates, edits and deletes users; grants and revokes individual permissions.
-- **Admin / Project Lead / Team Member**: can only do what the Super User has individually ticked under *User permissions*. The role name alone grants nothing. Every API call is checked on the server (`CurrentUserService.require`), and the menu is hidden in the UI to match.
+- **Super User**: always has every permission; creates, edits, and deletes non-Manager accounts; grants and revokes individual permissions.
+- **Other roles**: can only do what the Super User has individually ticked under *User permissions*. The role name alone grants nothing. Every API call is checked on the server (`CurrentUserService.require`), and the menu is hidden in the UI to match.
+- **Manager accounts**: protected from edits, permission changes, and deletion by other accounts, including Super Users. A Manager can delete only their own account from **Settings**; they cannot change their own role or permissions. Super Users can still manage the roles and permissions of non-Manager accounts.
+- **Employee Directory**: access is explicitly limited to Manager-role accounts. This restriction also blocks Super Users from the employee and salary API, despite their normal permission bypass.
+- **Employee attendance**: employees use their linked non-Manager login account to record their own check-in, check-out, and multiple break intervals. Only Managers can view the team's attendance records and break details; non-Managers can access only their own attendance.
+
+## Employee directory and salary privacy
+
+Managers can create, view, update, and remove employee records, including employee ID, name, department, job title, work email, employment status, and monthly gross salary in INR. Annual gross salary is calculated as monthly salary × 12. The Manager can optionally link an employee record to one existing, active non-Manager login account with attendance access. Login accounts remain separate from employee records.
+
+Salary values are encrypted with AES-256-GCM before being stored in PostgreSQL. Configure `SALARY_ENCRYPTION_KEY` as a Base64-encoded random 32-byte key in `.env`; do not commit or share it. The database stores ciphertext, while the employee API returns salary data only to authenticated users with the Manager role. A Super User is deliberately denied this API. Database or server administrators who can access both the database and the encryption key can still decrypt the values. Back up the key securely with the database backups; losing it makes stored salary values unrecoverable.
 
 ## Prerequisites
 
@@ -34,7 +43,7 @@ Login & password reset · Dashboard · Projects · Project Management (clients, 
 cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
 ```
 
-Open `.env` and replace **every** `change-me…` value (database password, Super User password, `JWT_SECRET`). Never commit `.env`.
+Open `.env` and replace **every** `change-me…` value (database password, Super User password, `JWT_SECRET`, `SALARY_ENCRYPTION_KEY`). Never commit `.env`.
 
 ### 2. Database (pick one)
 
@@ -85,6 +94,7 @@ Sign in with `BOOTSTRAP_SUPERUSER_USERNAME` / `BOOTSTRAP_SUPERUSER_PASSWORD` fro
 1. Sign in as Super User → **User Management** → create users.
 2. **User permissions** → tick exactly what each user may do → *Save permissions*.
 3. **Project Management** → add clients, projects, leads, SLAs → then use Tasks and Tickets.
+4. Sign in with a Manager account → **Employee Directory** → add the company roster and link each employee to their existing login account. Employees use **Attendance** to punch in/out and record breaks; Managers use **Employee Directory → Employee attendance** to review daily records. Only Managers can see team records and salary values.
 
 ## Environment variables
 

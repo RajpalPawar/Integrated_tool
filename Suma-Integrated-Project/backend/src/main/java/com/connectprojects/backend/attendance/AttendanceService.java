@@ -2,6 +2,8 @@ package com.connectprojects.backend.attendance;
 
 import com.connectprojects.backend.account.AppUser;
 import com.connectprojects.backend.account.AppUserRepository;
+import com.connectprojects.backend.account.UserRole;
+import com.connectprojects.backend.api.ApiException;
 import com.connectprojects.backend.auth.CurrentUserService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -101,7 +103,7 @@ public class AttendanceService {
 
     @Transactional(readOnly = true)
     public List<AttendanceScheduleResponse> schedules(Authentication authentication) {
-        currentUser.require(authentication, "attendance.manage");
+        requireManager(authentication);
         return users.findAllByEnabledTrueOrderByFullNameAsc().stream()
                 .map(user -> schedules.findByUser_Id(user.getId())
                         .map(AttendanceScheduleResponse::from)
@@ -113,7 +115,7 @@ public class AttendanceService {
     @Transactional
     public AttendanceScheduleResponse updateSchedule(Long userId, AttendanceScheduleRequest request,
                                                     Authentication authentication) {
-        currentUser.require(authentication, "attendance.manage");
+        requireManager(authentication);
         AppUser user = users.findById(userId)
                 .filter(AppUser::isEnabled)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Active user not found."));
@@ -125,9 +127,16 @@ public class AttendanceService {
 
     @Transactional(readOnly = true)
     public List<AttendanceResponse> team(LocalDate date, Authentication authentication) {
-        currentUser.require(authentication, "attendance.manage");
+        requireManager(authentication);
         LocalDate requestedDate = date == null ? LocalDate.now() : date;
         return records.findAllByWorkDateOrderByUser_FullNameAsc(requestedDate).stream()
                 .map(AttendanceResponse::from).toList();
+    }
+
+    private void requireManager(Authentication authentication) {
+        AppUser user = currentUser.get(authentication);
+        if (user.getRole() != UserRole.MANAGER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only Manager accounts can view team attendance.");
+        }
     }
 }
